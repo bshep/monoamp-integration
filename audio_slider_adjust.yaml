@@ -1,0 +1,30 @@
+blueprint:
+  name: Adjust a slider to adjust zone volume
+  description: Adjust a slider to adjust zone volume
+  domain: automation
+  input:
+    actionName:
+    actionTarget:
+      selector:
+        entity:
+          domain: media_player
+    actionTrigger: 
+      selector:
+        entity:
+          domain: input_number
+
+alias: Audio - Adjust Volume !input actionName
+description: ''
+
+trigger:
+  - platform: state
+    entity_id: !input actionTrigger
+
+
+action:
+  - service: mono_amp.set_zone
+    data:
+      volume_value: '{{ states(''!input actionTrigger'') | int }}'
+    target:
+      entity_id: !input actionTarget
+mode: single
