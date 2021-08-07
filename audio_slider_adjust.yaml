@@ -27,7 +27,7 @@ variables:
 action:
   - service: mono_amp.set_zone
     data:
-      {{ actionVariable }}: '{{ states(actionTrigger) | int }}'
+      !input actionVariable: '{{ states(actionTrigger) | int }}'
     target:
       entity_id: !input actionTarget
 mode: single
