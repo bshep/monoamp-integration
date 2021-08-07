@@ -19,7 +19,7 @@ import asyncio
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = ["switch", "media_player"]
+PLATFORMS = ["media_player"]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

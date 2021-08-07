@@ -1,5 +1,5 @@
 {
-  "domain": "integration-mono-amp",
+  "domain": "mono_amp",
   "name": "MonoAmp Audio Distribution",
   "config_flow": true,
   "documentation": "https://www.home-assistant.io/integrations/mono-amp",

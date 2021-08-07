@@ -1,6 +1,11 @@
-from homeassistant.helpers.typing import StateType
 import logging
+from typing import Optional
+
+import voluptuous as vol
+
+from homeassistant.helpers.typing import StateType
 from homeassistant.components.media_player import MediaPlayerEntity
+from homeassistant.helpers import entity_platform, config_validation as cv
 from homeassistant.components.media_player.const import (
     MEDIA_TYPE_MUSIC,
     SUPPORT_TURN_OFF,
@@ -16,7 +21,7 @@ from homeassistant.const import (
     STATE_ON,
 )
 
-from . import MonoAmpEntity
+from . import MonoAmpEntity, PLATFORMS
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
@@ -30,6 +35,8 @@ SUPPORT_MONOAMP = (
     | SUPPORT_VOLUME_STEP
 )
 
+SERVICE_SET_ZONE = "set_zone"
+
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up entry."""
@@ -38,14 +45,28 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 
     for keypad in coordinator.data["Keypads"]:
         if keypad["Name"] != "None":
-            entities.append(MonoAmpVolume(coordinator, keypad["ZN"], True))
+            entities.append(MonoAmpZone(coordinator, keypad["ZN"], True))
     #     enabled = circuit["name"] not in GENERIC_CIRCUIT_NAMES
     #     entities.append(MonoAmpSwitch(coordinator, circuit_num, enabled))
 
     async_add_entities(entities)
 
+    platform = entity_platform.async_get_current_platform()
 
-class MonoAmpVolume(MonoAmpEntity, MediaPlayerEntity):
+    platform.async_register_entity_service(
+        SERVICE_SET_ZONE,
+        {
+            vol.Optional("treble_value"): cv.positive_int,
+            vol.Optional("bass_value"): cv.positive_int,
+            vol.Optional("balance_value"): cv.positive_int,
+            vol.Optional("volume_value"): cv.positive_int,
+            vol.Optional("mute_value"): cv.boolean,
+        },
+        "async_set_zone",
+    )
+
+
+class MonoAmpZone(MonoAmpEntity, MediaPlayerEntity):
     def __init__(self, coordinator, data_key, enabled):
         super().__init__(coordinator, data_key, enabled=enabled)
 
@@ -59,6 +80,41 @@ class MonoAmpVolume(MonoAmpEntity, MediaPlayerEntity):
             "ValueUp",
             {"Channel": self.channel, "Property": "VO"},
         )
+
+    async def async_set_zone(
+        self,
+        treble_value=None,
+        bass_value=None,
+        balance_value=None,
+        volume_value=None,
+        mute_value=None,
+    ):
+        if treble_value is not None:
+            await self.hass.async_add_executor_job(
+                self.gateway.api_request,
+                "Value",
+                {"Channel": self.channel, "Property": "TR", "Value": treble_value},
+            )
+
+        if bass_value is not None:
+            await self.hass.async_add_executor_job(
+                self.gateway.api_request,
+                "Value",
+                {"Channel": self.channel, "Property": "BS", "Value": bass_value},
+            )
+
+        if balance_value is not None:
+            await self.hass.async_add_executor_job(
+                self.gateway.api_request,
+                "Value",
+                {"Channel": self.channel, "Property": "BL", "Value": balance_value},
+            )
+
+        if volume_value is not None:
+            await self.async_set_volume_level(volume_value / 38)
+
+        if mute_value is not None:
+            await self.async_mute_volume(mute_value)
 
     async def async_volume_down(self):
         """Send volume up command."""
@@ -168,15 +224,13 @@ class MonoAmpVolume(MonoAmpEntity, MediaPlayerEntity):
 
     async def async_turn_on(self, **kwargs) -> None:
         """Send the ON command."""
-        return await self._async_set_circuit("1")
-        # return await self._async_set_circuit(ON_OFF.ON)
+        return await self._async_set_power("1")
 
     async def async_turn_off(self, **kwargs) -> None:
         """Send the OFF command."""
-        return await self._async_set_circuit("0")
-        # return False
+        return await self._async_set_power("0")
 
-    async def _async_set_circuit(self, circuit_value) -> None:
+    async def _async_set_power(self, circuit_value) -> None:
 
         ret = await self.hass.async_add_executor_job(
             self.gateway.api_request,

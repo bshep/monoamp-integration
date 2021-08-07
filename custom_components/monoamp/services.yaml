@@ -1,0 +1,49 @@
+set_zone:
+  name: Set Zone Parameters
+  description: Set the parameters for the zone
+  target:
+    entity:
+      integration: mono_amp
+      domain: media_player
+  fields:
+    treble_value:
+      name: Treble
+      decription: Treble Value
+      required: false
+      default: 7
+      selector:
+        number:
+          min: 0
+          max: 14
+          mode: slider
+    bass_value:
+      name: Bass
+      decription: Bass Value
+      required: false
+      default: 7
+      selector:
+        number:
+          min: 0
+          max: 14
+          mode: slider
+    balance_value:
+      name: Balance
+      decription: Balance Value
+      required: false
+      default: 10
+      selector:
+        number:
+          min: 0
+          max: 20
+          mode: slider
+    volume_value:
+      name: Volume
+      selector:
+        number:
+          min: 0
+          max: 38
+          mode: slider
+    mute_value:
+      name: Mute
+      selector:
+        boolean:
