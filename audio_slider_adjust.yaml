@@ -20,11 +20,13 @@ trigger:
   - platform: state
     entity_id: !input actionTrigger
 
+variables:
+  actionTrigger: !input actionTrigger
 
 action:
   - service: mono_amp.set_zone
     data:
-      volume_value: '{{ states(''!input actionTrigger'') | int }}'
+      volume_value: '{{ states(actionTrigger) | int }}'
     target:
       entity_id: !input actionTarget
 mode: single
