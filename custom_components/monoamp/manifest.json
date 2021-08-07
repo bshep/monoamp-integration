@@ -1,8 +1,8 @@
 {
-  "domain": "house_audio_amplifier",
-  "name": "House Audio Amplifier",
+  "domain": "mono-amp",
+  "name": "MonoAmp Audio Distribution",
   "config_flow": true,
-  "documentation": "https://www.home-assistant.io/integrations/house_audio_amplifier",
+  "documentation": "https://www.home-assistant.io/integrations/mono-amp",
   "requirements": [],
   "ssdp": [],
   "zeroconf": [],
