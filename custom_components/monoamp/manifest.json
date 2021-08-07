@@ -1,0 +1,15 @@
+{
+  "domain": "house_audio_amplifier",
+  "name": "House Audio Amplifier",
+  "config_flow": true,
+  "documentation": "https://www.home-assistant.io/integrations/house_audio_amplifier",
+  "requirements": [],
+  "ssdp": [],
+  "zeroconf": [],
+  "homekit": {},
+  "dependencies": [],
+  "codeowners": [
+    "@bshep"
+  ],
+  "iot_class": "local_polling"
+}
