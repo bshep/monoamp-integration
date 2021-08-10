@@ -5,6 +5,7 @@ import voluptuous as vol
 
 from homeassistant.helpers.typing import StateType
 from homeassistant.components.media_player import MediaPlayerEntity
+from homeassistant.components.number import NumberEntity
 from homeassistant.helpers import entity_platform, config_validation as cv
 from homeassistant.components.media_player.const import (
     MEDIA_TYPE_MUSIC,
@@ -21,8 +22,8 @@ from homeassistant.const import (
     STATE_ON,
 )
 
-from . import MonoAmpEntity, PLATFORMS
-from .const import DOMAIN
+from . import MonoAmpEntity
+from .const import DOMAIN, MAX_VOLUME_LIMIT
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -71,7 +72,7 @@ class MonoAmpZone(MonoAmpEntity, MediaPlayerEntity):
         super().__init__(coordinator, data_key, enabled=enabled)
 
         self._receiver_max_volume = 38  #
-        self._max_volume = 80  # Percentage of max volume to allow
+        self._max_volume = MAX_VOLUME_LIMIT  # Percentage of max volume to allow
 
     async def async_volume_up(self):
         """Send volume up command."""
@@ -167,9 +168,8 @@ class MonoAmpZone(MonoAmpEntity, MediaPlayerEntity):
     def name(self):
         """Get the name of the switch."""
         # return f"{self.gateway_name} {self.circuit['name']}"
-        kp = self.circuit
-        if kp is not None:
-            return f"{self.circuit['Name']} Volume"
+        if self.circuit is not None:
+            return f"{self.circuit['Name']} Zone"
         else:
             return "None"
 
@@ -232,7 +232,7 @@ class MonoAmpZone(MonoAmpEntity, MediaPlayerEntity):
 
     async def _async_set_power(self, circuit_value) -> None:
 
-        ret = await self.hass.async_add_executor_job(
+        await self.hass.async_add_executor_job(
             self.gateway.api_request,
             "Value",
             {
@@ -241,5 +241,3 @@ class MonoAmpZone(MonoAmpEntity, MediaPlayerEntity):
                 "Value": circuit_value,
             },
         )
-
-        _LOGGER.info("MonoAmpSwitch: %s", ret)
