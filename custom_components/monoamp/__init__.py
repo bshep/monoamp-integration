@@ -58,6 +58,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
 
     await hass.config_entries.async_forward_entry_unload(entry, "media_player")
+    await hass.config_entries.async_forward_entry_unload(entry, "number")
 
     unload_ok = True  # await hass.data[DOMAIN][entry.entry_id].unload()
     if unload_ok:
