@@ -33,7 +33,7 @@ from homeassistant.const import (
 from . import MonoAmpEntity
 from .const import DOMAIN, MAX_VOLUME_LIMIT
 
-import websockets
+import websocket
 import json
 import asyncio
 import datetime as dt
@@ -119,12 +119,14 @@ class PandoraZone(MediaPlayerEntity):
 
     async def async_update(self):
         url = "ws://192.168.2.128:4446/pianod/?protocol=json"
-        thesocket = await websockets.connect(url)
+        thesocket = websocket.WebSocket()
+
+        thesocket.connect(url)
 
         self._initial_data = json.loads(await self.recv_till_end(thesocket))
         # self._initial_data = self._initial_data
 
-        await thesocket.send("PLAYLIST LIST")
+        thesocket.send("PLAYLIST LIST")
 
         self._playlist_list = json.loads(await self.recv_till_end(thesocket))
 
@@ -134,14 +136,14 @@ class PandoraZone(MediaPlayerEntity):
 
         # room_data = []
         # for room in room_list["data"]:
-        await thesocket.send(f"ROOM ENTER {PANDORA_ROOMS[self.index - 1]}")
+        thesocket.send(f"ROOM ENTER {PANDORA_ROOMS[self.index - 1]}")
         self._room_data = json.loads(await self.recv_till_end(thesocket))
 
         # room_data.append(tmp)
 
         # self._room_data = room_data
 
-        await thesocket.close()
+        thesocket.close()
 
         # ret = json.loads(ret)
 
@@ -150,8 +152,8 @@ class PandoraZone(MediaPlayerEntity):
         self._last_updated = dt.datetime.now()
         pass
 
-    async def recv_till_end(self, thesocket: websockets):
-        return await thesocket.recv()
+    async def recv_till_end(self, thesocket: websocket.WebSocket):
+        return thesocket.recv()
 
     @property
     def source_list(self) -> list[str]:
@@ -179,27 +181,33 @@ class PandoraZone(MediaPlayerEntity):
 
     @property
     def media_image_url(self) -> str:
-        return self.song["albumArtUrl"]
+        if self.song is not None:
+            return self.song["albumArtUrl"]
 
     @property
     def media_artist(self) -> str:
-        return self.song["artistName"]
+        if self.song is not None:
+            return self.song["artistName"]
 
     @property
     def media_album_name(self) -> str:
-        return self.song["albumName"]
+        if self.song is not None:
+            return self.song["albumName"]
 
     @property
     def media_title(self) -> str:
-        return self.song["name"]
+        if self.song is not None:
+            return self.song["name"]
 
     @property
     def media_duration(self) -> int:
-        return int(self.song["duration"])
+        if self.song is not None:
+            return int(self.song["duration"])
 
     @property
     def media_position(self) -> int:
-        return int(self.song["timeIndex"])
+        if self.song is not None:
+            return int(self.song["timeIndex"])
 
     @property
     def media_position_updated_at(self) -> dt.datetime:
@@ -207,11 +215,15 @@ class PandoraZone(MediaPlayerEntity):
 
     @property
     def song(self):
-        return self._room_data["currentSong"]
+        if "currentSong" in self._room_data:
+            return self._room_data["currentSong"]
+        else:
+            return None
 
     async def async_select_source(self, source):
+        await self.media_command("STOP NOW")
         await self.media_command(f'select playlist name "{source}"')
-        await self.media_command("SKIP")
+        await self.media_command("PLAY")
 
     async def async_media_play(self):
         await self.media_command("PLAY")
@@ -224,10 +236,12 @@ class PandoraZone(MediaPlayerEntity):
 
     async def media_command(self, command):
         url = "ws://192.168.2.128:4446/pianod/?protocol=json"
-        thesocket = await websockets.connect(url)
-        await thesocket.send(f"ROOM ENTER {PANDORA_ROOMS[self.index - 1]}")
-        await thesocket.send(f"{command}")
-        await thesocket.close()
+        thesocket = websocket.WebSocket()
+
+        thesocket.connect(url)
+        thesocket.send(f"ROOM ENTER {PANDORA_ROOMS[self.index - 1]}")
+        thesocket.send(f"{command}")
+        thesocket.close()
 
 
 class MonoAmpZone(MonoAmpEntity, MediaPlayerEntity):
