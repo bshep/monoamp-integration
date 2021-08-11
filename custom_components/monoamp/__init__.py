@@ -1,4 +1,4 @@
-"""The House Audio Amplifier integration."""
+"""The Mono Amp (HTTP) Audio Amplifier integration."""
 from __future__ import annotations
 from typing import Sequence
 
@@ -60,11 +60,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await hass.config_entries.async_forward_entry_unload(entry, "media_player")
     await hass.config_entries.async_forward_entry_unload(entry, "number")
 
-    unload_ok = True  # await hass.data[DOMAIN][entry.entry_id].unload()
-    if unload_ok:
-        hass.data[DOMAIN].pop(entry.entry_id)
+    hass.data[DOMAIN].pop(entry.entry_id)
 
-    return unload_ok
+    return True
 
 
 class MonoAmpDataUpdateCoordinator(DataUpdateCoordinator):
@@ -157,19 +155,24 @@ class MonoAmpGateway:
             self.AmpState["Keypads"].insert(
                 kp, self.api_request("keypad", args={"chan": kp})
             )
-            # _LOGGER.warning("MonoAmp: Send request to KP: %i", kp)
 
     def api_request(self, request_id, args=None) -> str:
 
         if args is None:
             args = {}
 
+        ret = None
+
         try:
-            return requests.get(
-                self.api_endpoint + "/" + request_id, params=args
-            ).json()
+            ret = requests.get(
+                self.api_endpoint + "/" + request_id, params=args, timeout=1
+            )
+
+            ret = ret.json()
         except Exception as ex:
             _LOGGER.error("MonoAmpGateway - api_request: %s", ex)
+
+        return ret
 
     def get_data(self):
         return self.AmpState

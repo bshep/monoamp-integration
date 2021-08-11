@@ -1,29 +1,42 @@
+from asyncio.exceptions import CancelledError
 import logging
 from typing import Optional
+from attr import dataclass
 
 import voluptuous as vol
 
 from homeassistant.helpers.typing import StateType
-from homeassistant.components.media_player import MediaPlayerEntity
+from homeassistant.components.media_player import MediaPlayerEntity, is_on
 from homeassistant.components.number import NumberEntity
 from homeassistant.helpers import entity_platform, config_validation as cv
 from homeassistant.components.media_player.const import (
     MEDIA_TYPE_MUSIC,
+    SUPPORT_NEXT_TRACK,
     SUPPORT_TURN_OFF,
     SUPPORT_TURN_ON,
     SUPPORT_VOLUME_MUTE,
     SUPPORT_SELECT_SOURCE,
     SUPPORT_VOLUME_SET,
     SUPPORT_VOLUME_STEP,
+    SUPPORT_PAUSE,
+    SUPPORT_PLAY,
+    SUPPORT_NEXT_TRACK,
 )
 
 from homeassistant.const import (
     STATE_OFF,
     STATE_ON,
+    STATE_PAUSED,
+    STATE_PLAYING,
 )
 
 from . import MonoAmpEntity
 from .const import DOMAIN, MAX_VOLUME_LIMIT
+
+import websockets
+import json
+import asyncio
+import datetime as dt
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -36,7 +49,14 @@ SUPPORT_MONOAMP = (
     | SUPPORT_VOLUME_STEP
 )
 
+SUPPORT_PANDORA = (
+    SUPPORT_PLAY | SUPPORT_PAUSE | SUPPORT_NEXT_TRACK | SUPPORT_SELECT_SOURCE
+)
+
 SERVICE_SET_ZONE = "set_zone"
+
+
+PANDORA_ROOMS = ["pianod", "pandora2"]
 
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
@@ -51,6 +71,12 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     #     entities.append(MonoAmpSwitch(coordinator, circuit_num, enabled))
 
     async_add_entities(entities)
+
+    entities = []
+    entities.append(PandoraZone(coordinator, 1))
+    entities.append(PandoraZone(coordinator, 2))
+
+    async_add_entities(entities, True)
 
     platform = entity_platform.async_get_current_platform()
 
@@ -67,20 +93,149 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     )
 
 
+class PandoraZone(MediaPlayerEntity):
+    def __init__(self, coordinator, index) -> None:
+        super().__init__()
+        self.coordinator = coordinator
+        self.index = index
+        self._room = PANDORA_ROOMS[index - 1]
+        self._last_updated = dt.datetime.now()
+
+    @property
+    def supported_features(self) -> int:
+        return SUPPORT_PANDORA
+
+    @property
+    def name(self) -> str:
+        return f"Pandora {self.index}"
+
+    @property
+    def media_content_type(self) -> str:
+        return MEDIA_TYPE_MUSIC
+
+    @property
+    def unique_id(self) -> str:
+        return f"{super().unique_id} - Pandora {self.index}"
+
+    async def async_update(self):
+        url = "ws://192.168.2.128:4446/pianod/?protocol=json"
+        thesocket = await websockets.connect(url)
+
+        self._initial_data = json.loads(await self.recv_till_end(thesocket))
+        # self._initial_data = self._initial_data
+
+        await thesocket.send("PLAYLIST LIST")
+
+        self._playlist_list = json.loads(await self.recv_till_end(thesocket))
+
+        # await thesocket.send("ROOM LIST")
+
+        # room_list = json.loads(await self.recv_till_end(thesocket))
+
+        # room_data = []
+        # for room in room_list["data"]:
+        await thesocket.send(f"ROOM ENTER {PANDORA_ROOMS[self.index - 1]}")
+        self._room_data = json.loads(await self.recv_till_end(thesocket))
+
+        # room_data.append(tmp)
+
+        # self._room_data = room_data
+
+        await thesocket.close()
+
+        # ret = json.loads(ret)
+
+        # ret["data"][0]
+
+        self._last_updated = dt.datetime.now()
+        pass
+
+    async def recv_till_end(self, thesocket: websockets):
+        return await thesocket.recv()
+
+    @property
+    def source_list(self) -> list[str]:
+        playlist_list = []
+        for it in self._playlist_list["data"]:
+            playlist_list.append(it["name"])
+
+        return playlist_list
+
+    @property
+    def source(self):
+        if "state" in self._room_data:
+            return self._room_data["state"]["selectedPlaylist"]["name"]
+        else:
+            return ""
+
+    @property
+    def state(self) -> str:
+        playback_state = self._room_data["state"]["playbackState"]
+
+        if playback_state == "playing":
+            return STATE_PLAYING
+        else:
+            return STATE_PAUSED
+
+    @property
+    def media_image_url(self) -> str:
+        return self.song["albumArtUrl"]
+
+    @property
+    def media_artist(self) -> str:
+        return self.song["artistName"]
+
+    @property
+    def media_album_name(self) -> str:
+        return self.song["albumName"]
+
+    @property
+    def media_title(self) -> str:
+        return self.song["name"]
+
+    @property
+    def media_duration(self) -> int:
+        return int(self.song["duration"])
+
+    @property
+    def media_position(self) -> int:
+        return int(self.song["timeIndex"])
+
+    @property
+    def media_position_updated_at(self) -> dt.datetime:
+        return self._last_updated
+
+    @property
+    def song(self):
+        return self._room_data["currentSong"]
+
+    async def async_select_source(self, source):
+        await self.media_command(f'select playlist name "{source}"')
+        await self.media_command("SKIP")
+
+    async def async_media_play(self):
+        await self.media_command("PLAY")
+
+    async def async_media_pause(self):
+        await self.media_command("PAUSE")
+
+    async def async_media_next_track(self):
+        await self.media_command("SKIP")
+
+    async def media_command(self, command):
+        url = "ws://192.168.2.128:4446/pianod/?protocol=json"
+        thesocket = await websockets.connect(url)
+        await thesocket.send(f"ROOM ENTER {PANDORA_ROOMS[self.index - 1]}")
+        await thesocket.send(f"{command}")
+        await thesocket.close()
+
+
 class MonoAmpZone(MonoAmpEntity, MediaPlayerEntity):
     def __init__(self, coordinator, data_key, enabled):
         super().__init__(coordinator, data_key, enabled=enabled)
 
         self._receiver_max_volume = 38  #
         self._max_volume = MAX_VOLUME_LIMIT  # Percentage of max volume to allow
-
-    async def async_volume_up(self):
-        """Send volume up command."""
-        await self.hass.async_add_executor_job(
-            self.gateway.api_request,
-            "ValueUp",
-            {"Channel": self.channel, "Property": "VO"},
-        )
 
     async def async_set_zone(
         self,
@@ -116,6 +271,14 @@ class MonoAmpZone(MonoAmpEntity, MediaPlayerEntity):
 
         if mute_value is not None:
             await self.async_mute_volume(mute_value)
+
+    async def async_volume_up(self):
+        """Send volume up command."""
+        await self.hass.async_add_executor_job(
+            self.gateway.api_request,
+            "ValueUp",
+            {"Channel": self.channel, "Property": "VO"},
+        )
 
     async def async_volume_down(self):
         """Send volume up command."""

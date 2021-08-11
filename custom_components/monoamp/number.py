@@ -18,14 +18,9 @@ from homeassistant.const import (
 )
 
 from . import MonoAmpEntity
-from .const import DOMAIN, MAX_VOLUME_LIMIT
+from .const import DOMAIN, PROP_MAP_INV, PROP_MAX
 
 _LOGGER = logging.getLogger(__name__)
-
-PROP_MAP = {"VO": "volume", "BL": "balance", "BS": "bass", "TR": "treble"}
-PROP_MAP_INV = {v: k for k, v in PROP_MAP.items()}
-
-PROP_MAX = {"VO": int(38 * (MAX_VOLUME_LIMIT / 100)), "BL": 20, "BS": 14, "TR": 14}
 
 
 async def async_setup_entry(hass, config_entry, async_add_entities):

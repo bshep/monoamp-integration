@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 import voluptuous as vol
 
@@ -12,6 +12,8 @@ from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
 
 from .const import DOMAIN
+
+from . import MonoAmpGateway
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -43,6 +45,14 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
 
     Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
     """
+
+    gw = MonoAmpGateway(data["host"])
+
+    ret = await hass.async_add_executor_job(gw.api_request, "AmpState")
+
+    if ret == None:
+        raise CannotConnect
+
     return {"title": "Whole Home Audio Amplifier"}
 
 
