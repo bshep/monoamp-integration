@@ -1,14 +1,16 @@
-from asyncio.exceptions import CancelledError
+from homeassistant.core import HomeAssistant
+import homeassistant
 import logging
-from typing import Optional
-from attr import dataclass
 
 import voluptuous as vol
 
 from homeassistant.helpers.typing import StateType
 from homeassistant.components.media_player import MediaPlayerEntity, is_on
-from homeassistant.components.number import NumberEntity
 from homeassistant.helpers import entity_platform, config_validation as cv
+from homeassistant.helpers.update_coordinator import (
+    DataUpdateCoordinator,
+)
+
 from homeassistant.components.media_player.const import (
     MEDIA_TYPE_MUSIC,
     SUPPORT_NEXT_TRACK,
@@ -35,7 +37,6 @@ from .const import DOMAIN, MAX_VOLUME_LIMIT
 
 import websocket
 import json
-import asyncio
 import datetime as dt
 
 _LOGGER = logging.getLogger(__name__)
@@ -55,14 +56,15 @@ SUPPORT_PANDORA = (
 
 SERVICE_SET_ZONE = "set_zone"
 
-
 PANDORA_ROOMS = ["pianod", "pandora2"]
 
 
-async def async_setup_entry(hass, config_entry, async_add_entities):
-    """Set up entry."""
+async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entities):
+    """Setup Mono-Amp Entries"""
     entities = []
-    coordinator = hass.data[DOMAIN][config_entry.entry_id]["coordinator"]
+    coordinator: DataUpdateCoordinator = hass.data[DOMAIN][config_entry.entry_id][
+        "coordinator"
+    ]
 
     for keypad in coordinator.data["Keypads"]:
         if keypad["Name"] != "None":
@@ -72,12 +74,15 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 
     async_add_entities(entities)
 
+    """Setup Pandora Entries"""
     entities = []
-    entities.append(PandoraZone(coordinator, 1))
-    entities.append(PandoraZone(coordinator, 2))
+
+    for i in range(len(PANDORA_ROOMS)):
+        entities.append(PandoraZone(hass, config_entry, i + 1))
 
     async_add_entities(entities, True)
 
+    """Setup Services to set zones"""
     platform = entity_platform.async_get_current_platform()
 
     platform.async_register_entity_service(
@@ -94,12 +99,14 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 
 
 class PandoraZone(MediaPlayerEntity):
-    def __init__(self, coordinator, index) -> None:
+    def __init__(self, hass: HomeAssistant, config_entry, index) -> None:
         super().__init__()
-        self.coordinator = coordinator
+        self.hass = hass
         self.index = index
         self._room = PANDORA_ROOMS[index - 1]
         self._last_updated = dt.datetime.now()
+        self._the_socket = None
+        self._url = f"ws://{config_entry.data['host']}:4446/pianod/?protocol=json"
 
     @property
     def supported_features(self) -> int:
@@ -118,42 +125,46 @@ class PandoraZone(MediaPlayerEntity):
         return f"{super().unique_id} - Pandora {self.index}"
 
     async def async_update(self):
-        url = "ws://192.168.2.128:4446/pianod/?protocol=json"
-        thesocket = websocket.WebSocket()
+        the_socket = await self.get_socket()
 
-        thesocket.connect(url)
+        await self.hass.async_add_executor_job(the_socket.send, "PLAYLIST LIST")
 
-        self._initial_data = json.loads(await self.recv_till_end(thesocket))
-        # self._initial_data = self._initial_data
+        self._playlist_list = await self.recv_data(203)
 
-        thesocket.send("PLAYLIST LIST")
-
-        self._playlist_list = json.loads(await self.recv_till_end(thesocket))
-
-        # await thesocket.send("ROOM LIST")
-
-        # room_list = json.loads(await self.recv_till_end(thesocket))
-
-        # room_data = []
-        # for room in room_list["data"]:
-        thesocket.send(f"ROOM ENTER {PANDORA_ROOMS[self.index - 1]}")
-        self._room_data = json.loads(await self.recv_till_end(thesocket))
-
-        # room_data.append(tmp)
-
-        # self._room_data = room_data
-
-        thesocket.close()
-
-        # ret = json.loads(ret)
-
-        # ret["data"][0]
+        await self.hass.async_add_executor_job(
+            the_socket.send, f"ROOM ENTER {PANDORA_ROOMS[self.index - 1]}"
+        )
+        self._room_data = await self.recv_data(200)
 
         self._last_updated = dt.datetime.now()
-        pass
 
-    async def recv_till_end(self, thesocket: websocket.WebSocket):
-        return thesocket.recv()
+    async def recv_data(self, valid_code):
+        the_socket = await self.get_socket()
+        valid_data = False
+
+        while not valid_data:
+            socket_data = await self.hass.async_add_executor_job(the_socket.recv)
+
+            json_data = json.loads(socket_data)
+            if "code" in json_data:
+                if json_data["code"] == valid_code:
+                    valid_data = True
+
+        return json_data
+
+    async def get_socket(self) -> websocket.WebSocket:
+        if self._the_socket is None:
+            self._the_socket = await self.socket_connect()
+        if self._the_socket.connected is False:
+            self._the_socket = await self.socket_connect()
+
+        return self._the_socket
+
+    async def socket_connect(self) -> websocket.WebSocket:
+        self._the_socket = websocket.WebSocket()
+
+        await self.hass.async_add_executor_job(self._the_socket.connect, self._url)
+        return self._the_socket
 
     @property
     def source_list(self) -> list[str]:
@@ -235,13 +246,12 @@ class PandoraZone(MediaPlayerEntity):
         await self.media_command("SKIP")
 
     async def media_command(self, command):
-        url = "ws://192.168.2.128:4446/pianod/?protocol=json"
-        thesocket = websocket.WebSocket()
+        the_socket = await self.get_socket()
 
-        thesocket.connect(url)
-        thesocket.send(f"ROOM ENTER {PANDORA_ROOMS[self.index - 1]}")
-        thesocket.send(f"{command}")
-        thesocket.close()
+        await self.hass.async_add_executor_job(
+            the_socket.send, f"ROOM ENTER {PANDORA_ROOMS[self.index - 1]}"
+        )
+        await self.hass.async_add_executor_job(the_socket.send, f"{command}")
 
 
 class MonoAmpZone(MonoAmpEntity, MediaPlayerEntity):
