@@ -5,7 +5,11 @@ import logging
 import voluptuous as vol
 
 from homeassistant.helpers.typing import StateType
-from homeassistant.components.media_player import MediaPlayerEntity, is_on
+from homeassistant.components.media_player import (
+    MediaPlayerEntity,
+    async_unload_entry,
+    is_on,
+)
 from homeassistant.helpers import entity_platform, config_validation as cv
 from homeassistant.helpers.update_coordinator import (
     DataUpdateCoordinator,
@@ -56,8 +60,6 @@ SUPPORT_PANDORA = (
 
 SERVICE_SET_ZONE = "set_zone"
 
-PANDORA_ROOMS = ["pianod", "pandora2"]
-
 
 async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entities):
     """Setup Mono-Amp Entries"""
@@ -77,8 +79,10 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
     """Setup Pandora Entries"""
     entities = []
 
-    for i in range(len(PANDORA_ROOMS)):
-        entities.append(PandoraZone(hass, config_entry, i + 1))
+    room_list = await get_room_list(hass, config_entry)
+
+    for i in range(len(room_list)):
+        entities.append(PandoraZone(hass, config_entry, room_list, i + 1))
 
     async_add_entities(entities, True)
 
@@ -98,12 +102,37 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
     )
 
 
+async def get_room_list(hass: HomeAssistant, config_entry):
+    url = f"ws://{config_entry.data['host']}:4446/pianod/?protocol=json"
+    tmp_socket = websocket.WebSocket()
+
+    await hass.async_add_executor_job(tmp_socket.connect, url)
+
+    await hass.async_add_executor_job(tmp_socket.send, "ROOM LIST")
+    valid_data = False
+
+    while not valid_data:
+        socket_data = await hass.async_add_executor_job(tmp_socket.recv)
+
+        json_data = json.loads(socket_data)
+        if "code" in json_data:
+            if json_data["code"] == 203:
+                valid_data = True
+
+    await hass.async_add_executor_job(tmp_socket.close)
+
+    ret = [item["room"] for item in json_data["data"]]
+    ret.reverse()
+    return ret
+
+
 class PandoraZone(MediaPlayerEntity):
-    def __init__(self, hass: HomeAssistant, config_entry, index) -> None:
+    def __init__(self, hass: HomeAssistant, config_entry, room_list, index) -> None:
         super().__init__()
         self.hass = hass
         self.index = index
-        self._room = PANDORA_ROOMS[index - 1]
+        self._room_list = room_list
+        self._room = self._room_list[index - 1]
         self._last_updated = dt.datetime.now()
         self._the_socket = None
         self._url = f"ws://{config_entry.data['host']}:4446/pianod/?protocol=json"
@@ -132,7 +161,7 @@ class PandoraZone(MediaPlayerEntity):
         self._playlist_list = await self.recv_data(203)
 
         await self.hass.async_add_executor_job(
-            the_socket.send, f"ROOM ENTER {PANDORA_ROOMS[self.index - 1]}"
+            the_socket.send, f"ROOM ENTER {self._room_list[self.index - 1]}"
         )
         self._room_data = await self.recv_data(200)
 
@@ -168,11 +197,11 @@ class PandoraZone(MediaPlayerEntity):
 
     @property
     def source_list(self) -> list[str]:
-        playlist_list = []
-        for it in self._playlist_list["data"]:
-            playlist_list.append(it["name"])
+        # playlist_list = []
+        # for it in self._playlist_list["data"]:
+        #     playlist_list.append(it["name"])
 
-        return playlist_list
+        return [item["name"] for item in self._playlist_list["data"]]
 
     @property
     def source(self):
@@ -249,7 +278,7 @@ class PandoraZone(MediaPlayerEntity):
         the_socket = await self.get_socket()
 
         await self.hass.async_add_executor_job(
-            the_socket.send, f"ROOM ENTER {PANDORA_ROOMS[self.index - 1]}"
+            the_socket.send, f"ROOM ENTER {self._room_list[self.index - 1]}"
         )
         await self.hass.async_add_executor_job(the_socket.send, f"{command}")
 
