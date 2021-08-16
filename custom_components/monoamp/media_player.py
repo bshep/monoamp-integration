@@ -246,14 +246,20 @@ class PandoraZone(MediaPlayerEntity):
     @property
     def media_duration(self) -> int:
         if self.song is not None:
-            return int(self.song["duration"])
+            if self.song["duration"] is not None:
+                return int(self.song["duration"])
+            else:
+                return 0
         else:
             return 0
 
     @property
     def media_position(self) -> int:
         if self.song is not None:
-            return int(self.song["timeIndex"])
+            if self.song["timeIndex"] is not None:
+                return int(self.song["timeIndex"])
+            else:
+                return 0
         else:
             return 0
 
