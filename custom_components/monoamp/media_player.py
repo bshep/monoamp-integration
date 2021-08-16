@@ -197,10 +197,6 @@ class PandoraZone(MediaPlayerEntity):
 
     @property
     def source_list(self) -> list[str]:
-        # playlist_list = []
-        # for it in self._playlist_list["data"]:
-        #     playlist_list.append(it["name"])
-
         return [item["name"] for item in self._playlist_list["data"]]
 
     @property
@@ -223,38 +219,50 @@ class PandoraZone(MediaPlayerEntity):
     def media_image_url(self) -> str:
         if self.song is not None:
             return self.song["albumArtUrl"]
+        else:
+            return ""
 
     @property
     def media_artist(self) -> str:
         if self.song is not None:
             return self.song["artistName"]
+        else:
+            return ""
 
     @property
     def media_album_name(self) -> str:
         if self.song is not None:
             return self.song["albumName"]
+        else:
+            return ""
 
     @property
     def media_title(self) -> str:
         if self.song is not None:
             return self.song["name"]
+        else:
+            return ""
 
     @property
     def media_duration(self) -> int:
         if self.song is not None:
             return int(self.song["duration"])
+        else:
+            return 0
 
     @property
     def media_position(self) -> int:
         if self.song is not None:
             return int(self.song["timeIndex"])
+        else:
+            return 0
 
     @property
     def media_position_updated_at(self) -> dt.datetime:
         return self._last_updated
 
     @property
-    def song(self):
+    def song(self) -> list:
         if "currentSong" in self._room_data:
             return self._room_data["currentSong"]
         else:
