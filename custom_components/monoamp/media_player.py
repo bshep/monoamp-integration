@@ -71,8 +71,8 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
     for keypad in coordinator.data["Keypads"]:
         if keypad["Name"] != "None":
             entities.append(MonoAmpZone(coordinator, keypad["ZN"], True))
-    #     enabled = circuit["name"] not in GENERIC_CIRCUIT_NAMES
-    #     entities.append(MonoAmpSwitch(coordinator, circuit_num, enabled))
+    #     enabled = zone["name"] not in GENERIC_CIRCUIT_NAMES
+    #     entities.append(MonoAmpSwitch(coordinator, zone_num, enabled))
 
     async_add_entities(entities)
 
@@ -391,37 +391,38 @@ class MonoAmpZone(MonoAmpEntity, MediaPlayerEntity):
 
     @property
     def is_volume_muted(self) -> bool:
-        return self.circuit["MU"] == 1
+        return self.zone["MU"] == 1 if self.data_valid else False
 
     @property
     def source(self):
         """Return the current input source of the device."""
-        return self.coordinator.data["Sources"][self.circuit["CH"] - 1]
+        return (
+            self.coordinator.data["Sources"][self.zone["CH"] - 1]
+            if self.data_valid
+            else ""
+        )
 
     @property
     def source_list(self):
         """List of available input sources."""
-        return list(filter(lambda i: "None" not in i, self.coordinator.data["Sources"]))
+        # return list(filter(lambda i: "None" not in i, self.coordinator.data["Sources"]))
+        return (
+            [item for item in self.coordinator.data["Sources"] if "None" not in item]
+            if self.data_valid
+            else []
+        )
 
     @property
     def name(self):
-        """Get the name of the switch."""
-        # return f"{self.gateway_name} {self.circuit['name']}"
-        if self.circuit is not None:
-            return f"{self.circuit['Name']} Zone"
-        else:
-            return "None"
+        return f"{self.zone['Name']} Zone" if self.data_valid else "--- Zone"
 
     @property
     def volume_level(self) -> float:
-        return float(self.circuit["VO"] / (38 * 0.8))
+        return float(self.zone["VO"] / (38 * 0.8)) if self.data_valid else 0
 
     @property
     def state(self) -> StateType:
-        if self.circuit["PR"] == 1:
-            return STATE_ON
-        else:
-            return STATE_OFF
+        return STATE_ON if self.data_valid and self.zone["PR"] == 1 else STATE_OFF
 
     @property
     def supported_features(self) -> int:
@@ -434,18 +435,22 @@ class MonoAmpZone(MonoAmpEntity, MediaPlayerEntity):
 
     @property
     def channel(self):
-        return int(self.circuit["ZN"]) - 11
+        return int(self.zone["ZN"]) - 11 if self.data_valid else 0
 
     @property
-    def circuit(self):
-        for kp in self.coordinator.data["Keypads"]:
-            if kp["ZN"] == self._data_key:
-                return kp
+    def zone(self):
+        kp = [
+            kp for kp in self.coordinator.data["Keypads"] if kp["ZN"] == self._data_key
+        ]
+        return kp[0] if len(kp) > 0 else None
 
     @property
     def is_on(self) -> bool:
-        """Get whether the switch is in on state."""
-        return self.circuit["PR"] == 1
+        return self.zone["PR"] == 1 if self.data_valid else False
+
+    @property
+    def data_valid(self):
+        return True if self.zone is not None else False
 
     async def async_select_source(self, source):
         """Set the input source."""
@@ -469,7 +474,7 @@ class MonoAmpZone(MonoAmpEntity, MediaPlayerEntity):
         """Send the OFF command."""
         return await self._async_set_power("0")
 
-    async def _async_set_power(self, circuit_value) -> None:
+    async def _async_set_power(self, zone_value) -> None:
 
         await self.hass.async_add_executor_job(
             self.gateway.api_request,
@@ -477,6 +482,6 @@ class MonoAmpZone(MonoAmpEntity, MediaPlayerEntity):
             {
                 "Channel": self.channel,
                 "Property": "PR",
-                "Value": circuit_value,
+                "Value": zone_value,
             },
         )
