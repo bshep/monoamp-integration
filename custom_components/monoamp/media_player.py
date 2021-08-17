@@ -156,14 +156,17 @@ class PandoraZone(MediaPlayerEntity):
     async def async_update(self):
         the_socket = await self.get_socket()
 
-        await self.hass.async_add_executor_job(the_socket.send, "PLAYLIST LIST")
+        try:
+            await self.hass.async_add_executor_job(the_socket.send, "PLAYLIST LIST")
 
-        self._playlist_list = await self.recv_data(203)
+            self._playlist_list = await self.recv_data(203)
 
-        await self.hass.async_add_executor_job(
-            the_socket.send, f"ROOM ENTER {self._room_list[self.index - 1]}"
-        )
-        self._room_data = await self.recv_data(200)
+            await self.hass.async_add_executor_job(
+                the_socket.send, f"ROOM ENTER {self._room_list[self.index - 1]}"
+            )
+            self._room_data = await self.recv_data(200)
+        except BrokenPipeError:
+            await self.hass.async_add_executor_job(self.socket_connect)
 
         self._last_updated = dt.datetime.now()
 
