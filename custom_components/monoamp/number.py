@@ -46,13 +46,14 @@ class MonoAmpZoneValue(MonoAmpEntity, NumberEntity):
 
     @property
     def channel(self):
-        return int(self.circuit["ZN"]) - 11
+        return int(self.zone["ZN"]) - 11 if self.data_valid else 0
 
     @property
-    def circuit(self):
-        for kp in self.coordinator.data["Keypads"]:
-            if kp["ZN"] == self._data_key:
-                return kp
+    def zone(self):
+        kp = [
+            kp for kp in self.coordinator.data["Keypads"] if kp["ZN"] == self._data_key
+        ]
+        return kp[0] if len(kp) > 0 else None
 
     async def async_set_value(self, value: float) -> None:
         _LOGGER.info("MonoAmpoZoneValue: Set %s", self.property_name)
@@ -68,7 +69,11 @@ class MonoAmpZoneValue(MonoAmpEntity, NumberEntity):
 
     @property
     def name(self) -> str:
-        return f"{self.circuit['Name']} {self.property_name.capitalize()}"
+        return (
+            f"{self.zone['Name']} {self.property_name.capitalize()}"
+            if self.data_valid
+            else f"----- {self.property_name.capitalize()}"
+        )
 
     @property
     def unique_id(self):
@@ -76,8 +81,12 @@ class MonoAmpZoneValue(MonoAmpEntity, NumberEntity):
 
     @property
     def value(self) -> float:
-        return self.circuit[PROP_MAP_INV[self.property_name]]
+        return self.zone[PROP_MAP_INV[self.property_name]] if self.data_valid else 0
 
     @property
     def available(self) -> bool:
-        return self.circuit["PR"] == 1
+        return self.zone["PR"] == 1 if self.data_valid else False
+
+    @property
+    def data_valid(self):
+        return True if self.zone is not None else False
