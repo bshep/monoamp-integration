@@ -439,10 +439,13 @@ class MonoAmpZone(MonoAmpEntity, MediaPlayerEntity):
 
     @property
     def zone(self):
+        if not self.data_valid:
+            return "None"
+
         kp = [
             kp for kp in self.coordinator.data["Keypads"] if kp["ZN"] == self._data_key
         ]
-        return kp[0] if len(kp) > 0 else None
+        return kp[0] if len(kp) > 0 else "None"
 
     @property
     def is_on(self) -> bool:
