@@ -50,6 +50,13 @@ class MonoAmpZoneValue(MonoAmpEntity, NumberEntity):
 
     @property
     def zone(self):
+        if (
+            self.coordinator.data == None
+            or len(self.coordinator.data) == 0
+            or len(self.coordinator.data["Keypads"]) == 0
+        ):
+            return None
+
         kp = [
             kp for kp in self.coordinator.data["Keypads"] if kp["ZN"] == self._data_key
         ]

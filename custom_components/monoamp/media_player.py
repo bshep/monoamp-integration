@@ -439,20 +439,21 @@ class MonoAmpZone(MonoAmpEntity, MediaPlayerEntity):
 
     @property
     def zone(self):
-        if len(self.coordinator.data) > 0:
-            if len(self.coordinator.data["Keypads"]) > 0:
-                try:
-                    kp = [
-                        kp
-                        for kp in self.coordinator.data["Keypads"]
-                        if kp["ZN"] == self._data_key
-                    ]
-                    return kp[0] if len(kp) > 0 else None
-                except:
-                    return None
-            else:
-                return None
-        else:
+        if (
+            self.coordinator.data == None
+            or len(self.coordinator.data) == 0
+            or len(self.coordinator.data["Keypads"]) == 0
+        ):
+            return None
+
+        try:
+            kp = [
+                kp
+                for kp in self.coordinator.data["Keypads"]
+                if kp["ZN"] == self._data_key
+            ]
+            return kp[0] if len(kp) > 0 else None
+        except:
             return None
 
     @property

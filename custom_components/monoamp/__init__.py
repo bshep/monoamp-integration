@@ -148,13 +148,16 @@ class MonoAmpGateway:
         self.api_endpoint = "http://" + self.host + ":50230/api"
 
     def update(self):
-        self.AmpState = self.api_request("AmpState")
+        result_json = self.api_request("AmpState")
 
-        self.AmpState["Keypads"] = []
-        for kp in range(0, self.AmpState["KeypadCount"]):
-            self.AmpState["Keypads"].insert(
-                kp, self.api_request("keypad", args={"chan": kp})
-            )
+        if result_json != "":
+            self.AmpState = result_json
+
+            self.AmpState["Keypads"] = []
+            for kp in range(0, self.AmpState["KeypadCount"]):
+                self.AmpState["Keypads"].insert(
+                    kp, self.api_request("keypad", args={"chan": kp})
+                )
 
     def api_request(self, request_id, args=None) -> str:
 
@@ -171,6 +174,7 @@ class MonoAmpGateway:
             ret = ret.json()
         except Exception as ex:
             _LOGGER.error("MonoAmpGateway - api_request: %s", ex)
+            ret = ""
 
         return ret
 
