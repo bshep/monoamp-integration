@@ -62,7 +62,7 @@ class MonoAmpZoneValue(MonoAmpEntity, NumberEntity):
         ]
         return kp[0] if len(kp) > 0 else None
 
-    async def async_set_value(self, value: float) -> None:
+    async def async_set_native_value(self, value: float) -> None:
         _LOGGER.info("MonoAmpoZoneValue: Set %s", self.property_name)
         await self.hass.async_add_executor_job(
             self.gateway.api_request,
