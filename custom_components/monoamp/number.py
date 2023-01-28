@@ -39,9 +39,9 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 class MonoAmpZoneValue(MonoAmpEntity, NumberEntity):
     def __init__(self, coordinator, data_key, enabled, property_name):
         super().__init__(coordinator, data_key, enabled=enabled)
-        self._attr_min_value = 0
-        self._attr_max_value = PROP_MAX[PROP_MAP_INV[property_name]]
-        self._attr_step = 1
+        self._attr_native_min_value = 0
+        self._attr_native_max_value = PROP_MAX[PROP_MAP_INV[property_name]]
+        self._attr_native_step = 1
         self.property_name = property_name
 
     @property
