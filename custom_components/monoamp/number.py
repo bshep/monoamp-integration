@@ -87,7 +87,7 @@ class MonoAmpZoneValue(MonoAmpEntity, NumberEntity):
         return f"{super().unique_id}_zone_{self.property_name}"
 
     @property
-    def value(self) -> float:
+    def native_value(self) -> float:
         return self.zone[PROP_MAP_INV[self.property_name]] if self.data_valid else 0
 
     @property
