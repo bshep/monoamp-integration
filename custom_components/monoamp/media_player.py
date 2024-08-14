@@ -1,15 +1,15 @@
-from homeassistant.core import HomeAssistant
-import homeassistant
+""" The media_player implementation """
+
+import json
+import datetime as dt
 import logging
+import websocket
 
 import voluptuous as vol
-
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.typing import StateType
 from homeassistant.components.media_player import (
-    MediaPlayerEntity,
-    async_unload_entry,
-    is_on,
-)
+    MediaPlayerEntity, BrowseMedia)
 from homeassistant.helpers import entity_platform, config_validation as cv
 from homeassistant.helpers.update_coordinator import (
     DataUpdateCoordinator,
@@ -26,7 +26,6 @@ from homeassistant.components.media_player.const import (
     SUPPORT_VOLUME_STEP,
     SUPPORT_PAUSE,
     SUPPORT_PLAY,
-    SUPPORT_NEXT_TRACK,
 )
 
 from homeassistant.const import (
@@ -39,9 +38,7 @@ from homeassistant.const import (
 from . import MonoAmpEntity
 from .const import DOMAIN, MAX_VOLUME_LIMIT
 
-import websocket
-import json
-import datetime as dt
+
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -76,7 +73,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
 
     async_add_entities(entities)
 
-    """Setup Pandora Entries"""
+    # Setup Pandora Entries
     entities = []
 
     room_list = await get_room_list(hass, config_entry)
@@ -86,7 +83,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
 
     async_add_entities(entities, True)
 
-    """Setup Services to set zones"""
+    # Setup Services to set zones
     platform = entity_platform.async_get_current_platform()
 
     platform.async_register_entity_service(
@@ -102,9 +99,10 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
     )
 
 
-async def get_room_list(hass: HomeAssistant, config_entry):
+async def get_room_list(hass: HomeAssistant, config_entry) -> list:
+    """ Returns room list from pandora """
     url = f"ws://{config_entry.data['host']}:4446/pianod/?protocol=json"
-    tmp_socket = websocket.WebSocket()
+    tmp_socket:websocket.WebSocket = websocket.WebSocket()
 
     await hass.async_add_executor_job(tmp_socket.connect, url)
 
@@ -127,15 +125,18 @@ async def get_room_list(hass: HomeAssistant, config_entry):
 
 
 class PandoraZone(MediaPlayerEntity):
+    """ Represents a Zone """
     def __init__(self, hass: HomeAssistant, config_entry, room_list, index) -> None:
         super().__init__()
-        self.hass = hass
-        self.index = index
-        self._room_list = room_list
-        self._room = self._room_list[index - 1]
-        self._last_updated = dt.datetime.now()
-        self._the_socket = None
-        self._url = f"ws://{config_entry.data['host']}:4446/pianod/?protocol=json"
+        self.hass: HomeAssistant = hass
+        self.index: int = index
+        self._room_list: list = room_list
+        self._room: str = self._room_list[index - 1]
+        self._room_data: str = ""
+        self._last_updated: str = dt.datetime.now()
+        self._the_socket: str = None
+        self._url: str = f"ws://{config_entry.data['host']}:4446/pianod/?protocol=json"
+        self._playlist_list: str = ""
 
     @property
     def supported_features(self) -> int:
@@ -153,7 +154,16 @@ class PandoraZone(MediaPlayerEntity):
     def unique_id(self) -> str:
         return f"{super().unique_id} - Pandora {self.index}"
 
+    async def async_browse_media(self, media_content_type: str | None = None,
+                                    media_content_id: str | None = None) -> BrowseMedia:
+        """ Unimplemented method """
+        return None
+
+    def clear_playlist(self) -> None:
+        """ Unimplemented method """
+
     async def async_update(self):
+        """ Updates the current state of the zone """
         the_socket = await self.get_socket()
 
         try:
@@ -171,6 +181,7 @@ class PandoraZone(MediaPlayerEntity):
         self._last_updated = dt.datetime.now()
 
     async def recv_data(self, valid_code):
+        """ Get data from pandora """
         the_socket = await self.get_socket()
         valid_data = False
 
@@ -185,6 +196,7 @@ class PandoraZone(MediaPlayerEntity):
         return json_data
 
     async def get_socket(self) -> websocket.WebSocket:
+        """ returns the associated socket """
         if self._the_socket is None:
             self._the_socket = await self.socket_connect()
         if self._the_socket.connected is False:
@@ -193,6 +205,7 @@ class PandoraZone(MediaPlayerEntity):
         return self._the_socket
 
     async def socket_connect(self) -> websocket.WebSocket:
+        """ connect the socket """
         self._the_socket = websocket.WebSocket()
 
         await self.hass.async_add_executor_job(self._the_socket.connect, self._url)
@@ -278,10 +291,11 @@ class PandoraZone(MediaPlayerEntity):
 
     @property
     def song(self) -> list:
+        """ return the cuurent song """
         if "currentSong" in self._room_data:
             return self._room_data["currentSong"]
-        else:
-            return None
+
+        return None
 
     async def async_select_source(self, source):
         await self.media_command("STOP NOW")
@@ -298,6 +312,7 @@ class PandoraZone(MediaPlayerEntity):
         await self.media_command("SKIP")
 
     async def media_command(self, command):
+        """ send a media command """
         the_socket = await self.get_socket()
 
         await self.hass.async_add_executor_job(
@@ -306,7 +321,11 @@ class PandoraZone(MediaPlayerEntity):
         await self.hass.async_add_executor_job(the_socket.send, f"{command}")
 
 
+
+
+
 class MonoAmpZone(MonoAmpEntity, MediaPlayerEntity):
+    """ Class that defines a MonoAmp Zone """
     def __init__(self, coordinator, data_key, enabled):
         super().__init__(coordinator, data_key, enabled=enabled)
 
@@ -321,6 +340,7 @@ class MonoAmpZone(MonoAmpEntity, MediaPlayerEntity):
         volume_value=None,
         mute_value=None,
     ):
+        """ Sets the properties of a zone """
         if treble_value is not None:
             await self.hass.async_add_executor_job(
                 self.gateway.api_request,
@@ -435,12 +455,14 @@ class MonoAmpZone(MonoAmpEntity, MediaPlayerEntity):
 
     @property
     def channel(self):
+        """ Returns the channel, mapped from zone on MonoAmp """
         return int(self.zone["ZN"]) - 11 if self.data_valid else 0
 
     @property
     def zone(self):
+        """ Returns the keypad from the zone data """
         if (
-            self.coordinator.data == None
+            self.coordinator.data is None
             or len(self.coordinator.data) == 0
             or len(self.coordinator.data["Keypads"]) == 0
         ):
@@ -453,20 +475,22 @@ class MonoAmpZone(MonoAmpEntity, MediaPlayerEntity):
                 if kp["ZN"] == self._data_key
             ]
             return kp[0] if len(kp) > 0 else None
-        except:
+        except Exception:
             return None
 
     @property
     def is_on(self) -> bool:
+        """ Returns True if zone is on """
         return self.zone["PR"] == 1 if self.data_valid else False
 
     @property
     def data_valid(self):
+        """ Returns True if data is valid """
         return True if self.zone is not None else False
 
     async def async_select_source(self, source):
         """Set the input source."""
-        for i in range(0, len(self.source_list)):
+        for i in enumerate(self.source_list):
             if source == self.source_list[i]:
                 return await self.hass.async_add_executor_job(
                     self.gateway.api_request,

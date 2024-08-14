@@ -1,21 +1,8 @@
+""" This module Manages the properties of a Zone """
+
 import logging
 
 from homeassistant.components.number import NumberEntity
-from homeassistant.helpers import entity_platform, config_validation as cv
-from homeassistant.components.media_player.const import (
-    MEDIA_TYPE_MUSIC,
-    SUPPORT_TURN_OFF,
-    SUPPORT_TURN_ON,
-    SUPPORT_VOLUME_MUTE,
-    SUPPORT_SELECT_SOURCE,
-    SUPPORT_VOLUME_SET,
-    SUPPORT_VOLUME_STEP,
-)
-
-from homeassistant.const import (
-    STATE_OFF,
-    STATE_ON,
-)
 
 from . import MonoAmpEntity
 from .const import DOMAIN, PROP_MAP_INV, PROP_MAX
@@ -37,6 +24,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 
 
 class MonoAmpZoneValue(MonoAmpEntity, NumberEntity):
+    """Represents the Value of Zone Property"""
     def __init__(self, coordinator, data_key, enabled, property_name):
         super().__init__(coordinator, data_key, enabled=enabled)
         self._attr_native_min_value = 0
@@ -46,12 +34,14 @@ class MonoAmpZoneValue(MonoAmpEntity, NumberEntity):
 
     @property
     def channel(self):
+        """ Returns the channel mapped from the zone """
         return int(self.zone["ZN"]) - 11 if self.data_valid else 0
 
     @property
     def zone(self):
+        """ Returns the zone corresponding to the object """
         if (
-            self.coordinator.data == None
+            self.coordinator.data is None
             or len(self.coordinator.data) == 0
             or len(self.coordinator.data["Keypads"]) == 0
         ):
@@ -73,6 +63,12 @@ class MonoAmpZoneValue(MonoAmpEntity, NumberEntity):
                 "Value": int(value),
             },
         )
+
+    def set_native_value(self, value: float) -> None:
+        return self.async_set_native_value(value)
+
+    def set_value(self, value: float) -> None:
+        self.set_native_value(value)
 
     @property
     def name(self) -> str:
@@ -96,4 +92,5 @@ class MonoAmpZoneValue(MonoAmpEntity, NumberEntity):
 
     @property
     def data_valid(self):
+        """ Returns True is data is valid """
         return True if self.zone is not None else False

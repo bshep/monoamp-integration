@@ -40,10 +40,12 @@ class MonoAmpSwitch(MonoAmpEntity, SwitchEntity):
 
     @property
     def channel(self):
+        """ Returns channel mapped from zone """
         return int(self.circuit["ZN"]) - 11
 
     @property
     def source(self):
+        """ Returns selected source for zone """
         return int(self.circuit["CH"])
 
     @property
@@ -61,6 +63,12 @@ class MonoAmpSwitch(MonoAmpEntity, SwitchEntity):
         return await self._async_set_circuit("0")
         # return False
 
+    def turn_off(self, **kwargs) -> None:
+        return self.async_turn_off(kwargs=kwargs)
+
+    def turn_on(self, **kwargs) -> None:
+        return self.async_turn_on(kwargs=kwargs)
+
     async def _async_set_circuit(self, circuit_value) -> None:
 
         ret = await self.hass.async_add_executor_job(
@@ -77,6 +85,7 @@ class MonoAmpSwitch(MonoAmpEntity, SwitchEntity):
 
     @property
     def circuit(self):
+        """ Returns the data for the associated zone """
         for kp in self.coordinator.data["Keypads"]:
             if kp["ZN"] == self._data_key:
                 return kp

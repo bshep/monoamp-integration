@@ -2,6 +2,10 @@
 from __future__ import annotations
 from typing import Sequence
 
+from datetime import timedelta
+import logging
+import asyncio
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers import device_registry as dr
 from homeassistant.core import HomeAssistant
@@ -10,21 +14,16 @@ from homeassistant.helpers.update_coordinator import (
     DataUpdateCoordinator,
     UpdateFailed,
 )
-from .const import DOMAIN
 
 import requests
-from datetime import timedelta
-import logging
-import asyncio
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = ["media_player", "number"]
 
-
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up House Audio Amplifier from a config entry."""
-    # TODO Store an API object for your platforms to access
     # hass.data[DOMAIN][entry.entry_id] = MyApi(...)
     hass.data[DOMAIN] = {}
     api_lock = asyncio.Lock()
@@ -66,6 +65,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 class MonoAmpDataUpdateCoordinator(DataUpdateCoordinator):
+    """ The update coordinator for the MonoAmp integration """
     def __init__(self, hass, *, gateway, config_entry, api_lock):
         """Initialize the MonoAmp Data Update Coordinator."""
         self.config_entry = config_entry
@@ -81,7 +81,7 @@ class MonoAmpDataUpdateCoordinator(DataUpdateCoordinator):
         )
 
     async def _async_update_data(self):
-        """Fetch data from the Screenlogic gateway."""
+        """Fetch data from the MonoAmp gateway."""
         try:
             async with self.api_lock:
                 await self.hass.async_add_executor_job(self.gateway.update)
@@ -92,13 +92,23 @@ class MonoAmpDataUpdateCoordinator(DataUpdateCoordinator):
 
 
 class MonoAmpEntity(CoordinatorEntity):
+    """Entity that represents a MonoAmp
+
+    Args:
+        CoordinatorEntity (CoordinatorEntity): object of type CoordinatorEntity from Home Assistant
+    """
     def __init__(self, coordinator, data_key, enabled=True):
         """Initialize of the entity."""
         super().__init__(coordinator)
         self._data_key = data_key
         self._enabled_default = enabled
 
-    def unload(self):
+    def unload(self) -> bool:
+        """Run when integration unloaded
+
+        Returns:
+            bool: always returns true
+        """
         return True
 
     @property
@@ -143,24 +153,37 @@ class MonoAmpEntity(CoordinatorEntity):
 
 
 class MonoAmpGateway:
+    """ 
+        class:  MonoAmpGateway
+    """
     def __init__(self, host) -> None:
-        self.host = host
-        self.api_endpoint = "http://" + self.host + ":50230/api"
+        self.host: str = host
+        self.api_endpoint: str = "http://" + self.host + ":50230/api"
+        self.amp_state: str = None
 
-    def update(self):
+    def update(self) -> None:
+        """Updates the state of the Class"""
         result_json = self.api_request("AmpState")
 
         if result_json != "":
-            self.AmpState = result_json
+            self.amp_state = result_json
 
-            self.AmpState["Keypads"] = []
-            for kp in range(0, self.AmpState["KeypadCount"]):
-                self.AmpState["Keypads"].insert(
+            self.amp_state["Keypads"] = []
+            for kp in range(0, self.amp_state["KeypadCount"]):
+                self.amp_state["Keypads"].insert(
                     kp, self.api_request("keypad", args={"chan": kp})
                 )
 
     def api_request(self, request_id, args=None) -> str:
+        """Sends an API request to the MonoAmp Gateway
 
+        Args:
+            request_id (str): the request_id
+            args (str, optional): Additional Arg to send. Defaults to None.
+
+        Returns:
+            str: the result of the request.
+        """
         if args is None:
             args = {}
 
@@ -178,9 +201,19 @@ class MonoAmpGateway:
 
         return ret
 
-    def get_data(self):
-        return self.AmpState
+    def get_data(self) -> str:
+        """Return the data in amp_state
+
+        Returns:
+            str: data
+        """
+        return self.amp_state
 
     @property
-    def name(self):
+    def name(self) -> str:
+        """Returns the name of the class
+
+        Returns:
+            str: the name
+        """
         return "MonoAmp Gateway"
