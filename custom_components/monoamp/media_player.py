@@ -122,7 +122,7 @@ class PandoraZone(MediaPlayerEntity):
         self._room: str = self._room_list[index - 1]
         self._room_data: str = ""
         self._last_updated: str = dt.datetime.now()
-        self._the_socket: str = None
+        self._the_socket: websocket.WebSocket = None
         self._url: str = f"ws://{config_entry.data['host']}:4446/pianod/?protocol=json"
         self._playlist_list: str = ""
 
@@ -301,12 +301,24 @@ class PandoraZone(MediaPlayerEntity):
 
     async def media_command(self, command):
         """ send a media command """
-        the_socket = await self.get_socket()
+        the_socket: websocket.WebSocket = await self.get_socket()
 
-        await self.hass.async_add_executor_job(
-            the_socket.send, f"ROOM ENTER {self._room_list[self.index - 1]}"
-        )
-        await self.hass.async_add_executor_job(the_socket.send, f"{command}")
+        if the_socket.connected is False:
+            await self.socket_connect()
+
+        try:
+
+            await self.hass.async_add_executor_job(
+                the_socket.send, f"ROOM ENTER {self._room_list[self.index - 1]}"
+            )
+            await self.hass.async_add_executor_job(the_socket.send, f"{command}")
+        except BrokenPipeError:
+            _LOGGER("Socket was disconnected, will try to reconnect")
+            await self.socket_connect()
+            if the_socket.connected is False:
+                _LOGGER("Unable to reconnect")
+            else:
+                _LOGGER("Reconnected!")
 
 
 
