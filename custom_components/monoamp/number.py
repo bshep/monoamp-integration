@@ -67,9 +67,6 @@ class MonoAmpZoneValue(MonoAmpEntity, NumberEntity):
     def set_native_value(self, value: float) -> None:
         return self.async_set_native_value(value)
 
-    def set_value(self, value: float) -> None:
-        self.set_native_value(value)
-
     @property
     def name(self) -> str:
         return (

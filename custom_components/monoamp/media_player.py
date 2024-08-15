@@ -16,24 +16,9 @@ from homeassistant.helpers.update_coordinator import (
 )
 
 from homeassistant.components.media_player.const import (
-    MEDIA_TYPE_MUSIC,
-    SUPPORT_NEXT_TRACK,
-    SUPPORT_TURN_OFF,
-    SUPPORT_TURN_ON,
-    SUPPORT_VOLUME_MUTE,
-    SUPPORT_SELECT_SOURCE,
-    SUPPORT_VOLUME_SET,
-    SUPPORT_VOLUME_STEP,
-    SUPPORT_PAUSE,
-    SUPPORT_PLAY,
+    MediaPlayerEntityFeature, MediaPlayerState, MediaType
 )
 
-from homeassistant.const import (
-    STATE_OFF,
-    STATE_ON,
-    STATE_PAUSED,
-    STATE_PLAYING,
-)
 
 from . import MonoAmpEntity
 from .const import DOMAIN, MAX_VOLUME_LIMIT
@@ -43,16 +28,19 @@ from .const import DOMAIN, MAX_VOLUME_LIMIT
 _LOGGER = logging.getLogger(__name__)
 
 SUPPORT_MONOAMP = (
-    SUPPORT_TURN_ON
-    | SUPPORT_TURN_OFF
-    | SUPPORT_VOLUME_MUTE
-    | SUPPORT_SELECT_SOURCE
-    | SUPPORT_VOLUME_SET
-    | SUPPORT_VOLUME_STEP
+    MediaPlayerEntityFeature.TURN_ON
+    | MediaPlayerEntityFeature.TURN_OFF
+    | MediaPlayerEntityFeature.VOLUME_MUTE
+    | MediaPlayerEntityFeature.SELECT_SOURCE
+    | MediaPlayerEntityFeature.VOLUME_SET
+    | MediaPlayerEntityFeature.VOLUME_STEP
 )
 
 SUPPORT_PANDORA = (
-    SUPPORT_PLAY | SUPPORT_PAUSE | SUPPORT_NEXT_TRACK | SUPPORT_SELECT_SOURCE
+    MediaPlayerEntityFeature.PLAY
+    | MediaPlayerEntityFeature.PAUSE
+    | MediaPlayerEntityFeature.NEXT_TRACK
+    | MediaPlayerEntityFeature.SELECT_SOURCE
 )
 
 SERVICE_SET_ZONE = "set_zone"
@@ -148,7 +136,7 @@ class PandoraZone(MediaPlayerEntity):
 
     @property
     def media_content_type(self) -> str:
-        return MEDIA_TYPE_MUSIC
+        return MediaType.MUSIC
 
     @property
     def unique_id(self) -> str:
@@ -227,9 +215,9 @@ class PandoraZone(MediaPlayerEntity):
         playback_state = self._room_data["state"]["playbackState"]
 
         if playback_state == "playing":
-            return STATE_PLAYING
+            return MediaPlayerState.PLAYING
         else:
-            return STATE_PAUSED
+            return MediaPlayerState.PAUSED
 
     @property
     def media_image_url(self) -> str:
@@ -442,7 +430,7 @@ class MonoAmpZone(MonoAmpEntity, MediaPlayerEntity):
 
     @property
     def state(self) -> StateType:
-        return STATE_ON if self.data_valid and self.zone["PR"] == 1 else STATE_OFF
+        return MediaPlayerState.ON if self.data_valid and self.zone["PR"] == 1 else MediaPlayerState.OFF
 
     @property
     def supported_features(self) -> int:
@@ -451,7 +439,7 @@ class MonoAmpZone(MonoAmpEntity, MediaPlayerEntity):
     @property
     def media_content_type(self):
         """Return the content type of current playing media."""
-        return MEDIA_TYPE_MUSIC
+        return MediaType.MUSIC
 
     @property
     def channel(self):
@@ -490,8 +478,8 @@ class MonoAmpZone(MonoAmpEntity, MediaPlayerEntity):
 
     async def async_select_source(self, source):
         """Set the input source."""
-        for i in enumerate(self.source_list):
-            if source == self.source_list[i]:
+        for i, value in enumerate(self.source_list):
+            if source == value:
                 return await self.hass.async_add_executor_job(
                     self.gateway.api_request,
                     "Value",
