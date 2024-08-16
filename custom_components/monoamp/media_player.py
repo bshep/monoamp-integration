@@ -19,6 +19,7 @@ from homeassistant.components.media_player.const import (
     MediaPlayerEntityFeature, MediaPlayerState, MediaType
 )
 
+from homeassistant.util.json import json_loads
 
 from . import MonoAmpEntity
 from .const import DOMAIN, MAX_VOLUME_LIMIT
@@ -100,7 +101,7 @@ async def get_room_list(hass: HomeAssistant, config_entry) -> list:
     while not valid_data:
         socket_data = await hass.async_add_executor_job(tmp_socket.recv)
 
-        json_data = json.loads(socket_data)
+        json_data = json_loads(socket_data)
         if "code" in json_data:
             if json_data["code"] == 203:
                 valid_data = True
@@ -146,9 +147,6 @@ class PandoraZone(MediaPlayerEntity):
                                     media_content_id: str | None = None) -> BrowseMedia:
         """ Unimplemented method """
         return None
-
-    def clear_playlist(self) -> None:
-        """ Unimplemented method """
 
     async def async_update(self):
         """ Updates the current state of the zone """
@@ -313,7 +311,7 @@ class PandoraZone(MediaPlayerEntity):
         if the_socket.connected is False:
             _LOGGER.error("Could not connect websocket")
             return
-            
+
         try:
 
             await self.hass.async_add_executor_job(
@@ -323,7 +321,11 @@ class PandoraZone(MediaPlayerEntity):
         except BrokenPipeError:
             _LOGGER.error("Socket was disconnected, will try to reconnect")
 
+    def join_players(self, group_members: list[str]) -> None:
+        raise NotImplementedError
 
+    def clear_playlist(self) -> None:
+        raise NotImplementedError
 
 
 
@@ -445,7 +447,10 @@ class MonoAmpZone(MonoAmpEntity, MediaPlayerEntity):
 
     @property
     def state(self) -> StateType:
-        return MediaPlayerState.ON if self.data_valid and self.zone["PR"] == 1 else MediaPlayerState.OFF
+        if self.data_valid and self.zone["PR"] == 1:
+            return MediaPlayerState.ON
+
+        return MediaPlayerState.OFF
 
     @property
     def supported_features(self) -> int:
@@ -478,7 +483,8 @@ class MonoAmpZone(MonoAmpEntity, MediaPlayerEntity):
                 if kp["ZN"] == self._data_key
             ]
             return kp[0] if len(kp) > 0 else None
-        except Exception:
+        except IndexError:
+            _LOGGER.error("Index error in MonoAmpZone.zone")
             return None
 
     @property
@@ -507,10 +513,16 @@ class MonoAmpZone(MonoAmpEntity, MediaPlayerEntity):
 
     async def async_turn_on(self, **kwargs) -> None:
         """Send the ON command."""
+        if kwargs is None:
+            pass
+
         return await self._async_set_power("1")
 
     async def async_turn_off(self, **kwargs) -> None:
         """Send the OFF command."""
+        if kwargs is None:
+            pass
+
         return await self._async_set_power("0")
 
     async def _async_set_power(self, zone_value) -> None:
@@ -524,3 +536,9 @@ class MonoAmpZone(MonoAmpEntity, MediaPlayerEntity):
                 "Value": zone_value,
             },
         )
+
+    def join_players(self, group_members: list[str]) -> None:
+        raise NotImplementedError
+
+    def clear_playlist(self) -> None:
+        raise NotImplementedError
