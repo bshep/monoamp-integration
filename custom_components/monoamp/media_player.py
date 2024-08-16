@@ -163,10 +163,14 @@ class PandoraZone(MediaPlayerEntity):
                 the_socket.send, f"ROOM ENTER {self._room_list[self.index - 1]}"
             )
             self._room_data = await self.recv_data(200)
+            self._last_updated = dt.datetime.now()
         except BrokenPipeError:
+            _LOGGER.info("BrokenPipeError:  websocket disconnected, scheduled reconnect")
+            await self.hass.async_add_executor_job(self.socket_connect)
+        except json.decoder.JSONDecodeError:
+            _LOGGER.info("JSONDecodeError:  websocket disconnected, scheduled reconnect")
             await self.hass.async_add_executor_job(self.socket_connect)
 
-        self._last_updated = dt.datetime.now()
 
     async def recv_data(self, valid_code):
         """ Get data from pandora """
