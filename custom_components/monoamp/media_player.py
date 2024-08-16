@@ -164,10 +164,10 @@ class PandoraZone(MediaPlayerEntity):
             self._last_updated = dt.datetime.now()
         except BrokenPipeError:
             _LOGGER.info("BrokenPipeError:  websocket disconnected, scheduled reconnect")
-            await self.hass.async_add_executor_job(self.socket_connect)
+            await self.get_socket()
         except json.decoder.JSONDecodeError:
             _LOGGER.info("JSONDecodeError:  websocket disconnected, scheduled reconnect")
-            await self.hass.async_add_executor_job(self.socket_connect)
+            await self.get_socket()
 
 
     async def recv_data(self, valid_code):
@@ -304,9 +304,6 @@ class PandoraZone(MediaPlayerEntity):
     async def media_command(self, command):
         """ send a media command """
         the_socket: websocket.WebSocket = await self.get_socket()
-
-        if the_socket.connected is False:
-            await self.socket_connect()
 
         if the_socket.connected is False:
             _LOGGER.error("Could not connect websocket")
