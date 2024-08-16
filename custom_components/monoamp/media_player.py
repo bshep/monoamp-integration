@@ -306,6 +306,10 @@ class PandoraZone(MediaPlayerEntity):
         if the_socket.connected is False:
             await self.socket_connect()
 
+        if the_socket.connected is False:
+            _LOGGER.error("Could not connect websocket")
+            return
+            
         try:
 
             await self.hass.async_add_executor_job(
@@ -313,12 +317,7 @@ class PandoraZone(MediaPlayerEntity):
             )
             await self.hass.async_add_executor_job(the_socket.send, f"{command}")
         except BrokenPipeError:
-            _LOGGER("Socket was disconnected, will try to reconnect")
-            await self.socket_connect()
-            if the_socket.connected is False:
-                _LOGGER("Unable to reconnect")
-            else:
-                _LOGGER("Reconnected!")
+            _LOGGER.error("Socket was disconnected, will try to reconnect")
 
 
 
